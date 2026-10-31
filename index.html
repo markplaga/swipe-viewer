@@ -71,22 +71,7 @@ h1{font-size:clamp(30px,7vw,44px);line-height:1;margin:0;font-weight:700;letter-
 .icon svg{width:20px;height:20px;stroke:var(--ink);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .icon.on{background:var(--signal)} .icon.on svg{stroke:#1a1205}
 
-#pip{position:absolute;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));
-  width:min(26vw,200px);aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#111;border:1px solid var(--line);
-  box-shadow:0 8px 30px rgba(0,0,0,.5)}
-#pip video,#pip canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-#pip video{opacity:.75}
-#status{position:absolute;left:8px;top:7px;display:flex;align-items:center;gap:6px;font:11px var(--mono);
-  background:rgba(0,0,0,.55);padding:3px 8px 3px 6px;border-radius:999px}
-#dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
-#dot.hand{background:var(--live);box-shadow:0 0 8px var(--live)}
-#dot.wait{background:var(--signal)}
-#pip.tiny{width:44px;height:44px;aspect-ratio:auto;border-radius:50%}
-#pip.tiny video,#pip.tiny canvas{display:none}
-#pip.tiny #status{inset:0;justify-content:center;background:none;padding:0}
-#pip.tiny #statusText{display:none}
-#pip.tiny #dot{width:14px;height:14px}
-
+.hiddenvid{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
 .flash{position:absolute;top:50%;width:110px;height:110px;margin-top:-55px;border-radius:50%;
   background:rgba(255,181,71,.9);display:grid;place-items:center;opacity:0;pointer-events:none;transform:scale(.7)}
 .flash svg{width:52px;height:52px;stroke:#1a1205;stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
@@ -95,9 +80,23 @@ h1{font-size:clamp(30px,7vw,44px);line-height:1;margin:0;font-weight:700;letter-
 @keyframes pop{0%{opacity:0;transform:scale(.7)}25%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.15)}}
 
 .trail{position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);
-  width:min(300px,50vw);height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden;transition:opacity .3s}
+  width:min(300px,50vw);height:6px;border-radius:3px;background:rgba(0,0,0,.45);overflow:hidden;transition:opacity .3s;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
 .trail i{position:absolute;top:0;bottom:0;width:22px;margin-left:-11px;border-radius:3px;background:var(--live);left:50%;transition:left .06s linear}
 .trail.off{opacity:0}
+.trail.adjust{opacity:1;height:10px;border-radius:5px}
+.trail b{position:absolute;top:0;bottom:0;background:rgba(255,181,71,.35);border-left:2px solid var(--signal);border-right:2px solid var(--signal);display:none}
+.trail.adjust b{display:block}
+#swipePanel{position:absolute;top:calc(max(12px,env(safe-area-inset-top)) + 52px);right:max(14px,env(safe-area-inset-right));
+  width:min(320px,calc(100vw - 28px));background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;font-size:14px}
+#swipePanel h2{margin:0;font-size:15px;font-weight:700}
+.distrow{display:flex;align-items:center;gap:10px}
+.distrow input{flex:1;min-width:0;accent-color:var(--signal)}
+.distrow .icon{width:36px;height:36px;font:700 20px var(--mono)}
+.distval{font:500 22px var(--mono);font-variant-numeric:tabular-nums}
+.presets{display:flex;gap:8px}
+.presets button{flex:1;border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 0;font-size:13px}
+.presets button.on{background:var(--signal);color:#1a1205;border-color:var(--signal)}
 
 #settings{position:absolute;top:calc(max(12px,env(safe-area-inset-top)) + 52px);right:max(14px,env(safe-area-inset-right));
   width:min(300px,calc(100vw - 28px));background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
@@ -108,7 +107,7 @@ h1{font-size:clamp(30px,7vw,44px);line-height:1;margin:0;font-weight:700;letter-
 #settings .note{margin-top:-4px}
 #toast{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);background:var(--panel);padding:12px 18px;border-radius:12px;
   font:13px var(--mono);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);max-width:calc(100vw - 32px);text-align:center}
-#viewer .hud,#pip,#settings,.flash,.trail,#toast{z-index:5}
+#viewer .hud,#swipePanel,#settings,.flash,.trail,#toast{z-index:5}
 @media (prefers-reduced-motion:reduce){#viewer img.slide{transition:none}.flash.show{animation:none}}
 </style>
 </head>
@@ -159,14 +158,27 @@ h1{font-size:clamp(30px,7vw,44px);line-height:1;margin:0;font-weight:700;letter-
   <div class="hud top">
     <span class="count" id="count">0 / 0</span>
     <span class="fname" id="fname"></span>
-    <button class="icon" id="pipBtn" title="Camera preview" aria-label="Toggle camera preview"><svg viewBox="0 0 24 24"><path d="M3 7h12v10H3zM15 11l6-3v8l-6-3"/></svg></button>
+    <button class="icon" id="swipeBtn" title="Swipe distance" aria-label="Swipe distance"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></button>
     <button class="icon" id="setBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
     <button class="icon" id="fsBtn" title="Fullscreen (F)" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="icon" id="exitBtn" title="Back to files" aria-label="Back to files"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
 
+  <div id="swipePanel" hidden>
+    <h2>Swipe distance</h2>
+    <div class="distrow">
+      <button class="icon" id="distMinus" aria-label="Shorter swipe">−</button>
+      <input type="range" id="dist" min="8" max="50" step="1" value="22" aria-label="Swipe distance">
+      <button class="icon" id="distPlus" aria-label="Longer swipe">+</button>
+    </div>
+    <div><span class="distval" id="distVal">22%</span> <span class="note">of the camera's width</span></div>
+    <div class="presets">
+      <button data-d="12">Short</button><button data-d="22">Medium</button><button data-d="35">Long</button>
+    </div>
+    <p class="note">The orange band on the track bar shows how far your hand has to travel. Shorter is more responsive; longer avoids accidental page turns.</p>
+  </div>
+
   <div id="settings" hidden>
-    <label>Swipe sensitivity <input type="range" id="sens" min="1" max="10" value="5"></label>
     <label>Reverse direction <input type="checkbox" id="rev"></label>
     <label>Wrap around at ends <input type="checkbox" id="wrap" checked></label>
     <label>Show hand track bar <input type="checkbox" id="showTrail" checked></label>
@@ -175,13 +187,9 @@ h1{font-size:clamp(30px,7vw,44px);line-height:1;margin:0;font-weight:700;letter-
 
   <div class="flash l" id="flashL"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>
   <div class="flash r" id="flashR"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
-  <div class="trail off" id="trail"><i id="trailDot"></i></div>
+  <div class="trail off" id="trail"><b id="reach"></b><i id="trailDot"></i></div>
 
-  <div id="pip">
-    <video id="video" playsinline muted autoplay></video>
-    <canvas id="overlay"></canvas>
-    <div id="status"><span id="dot"></span><span id="statusText">starting…</span></div>
-  </div>
+  <video id="video" class="hiddenvid" playsinline muted autoplay></video>
   <div id="toast" hidden></div>
 </section>
 
@@ -305,13 +313,13 @@ function toast(msg, ms=1600){
 let hudT;
 function poke(){
   $("viewer").classList.remove("hidehud"); clearTimeout(hudT);
-  hudT = setTimeout(()=>{ if ($("settings").hidden) $("viewer").classList.add("hidehud"); }, 2500);
+  hudT = setTimeout(()=>{ if ($("settings").hidden && $("swipePanel").hidden) $("viewer").classList.add("hidehud"); }, 2500);
 }
 $("viewer").addEventListener("pointermove", poke);
 
 /* ---------------- touch / keys / tap ---------------- */
 let tStart=null;
-$("viewer").addEventListener("pointerdown", e => { if (e.target.closest(".hud,#settings,#pip")) return; tStart={x:e.clientX,y:e.clientY,t:performance.now()}; });
+$("viewer").addEventListener("pointerdown", e => { if (e.target.closest(".hud,#settings,#swipePanel")) return; tStart={x:e.clientX,y:e.clientY,t:performance.now()}; });
 $("viewer").addEventListener("pointerup", e => {
   if (!tStart) return;
   const dx=e.clientX-tStart.x, dy=e.clientY-tStart.y; const s=tStart; tStart=null;
@@ -320,7 +328,7 @@ $("viewer").addEventListener("pointerup", e => {
     const w=innerWidth;
     if (e.clientX < w*0.2) navigate("prev", false);
     else if (e.clientX > w*0.8) navigate("next", false);
-    else if ($("viewer").classList.contains("hidehud")) poke(); else { $("viewer").classList.add("hidehud"); $("settings").hidden=true; }
+    else if ($("viewer").classList.contains("hidehud")) poke(); else { $("viewer").classList.add("hidehud"); openPanel(null); }
   }
 });
 document.addEventListener("keydown", e => {
@@ -364,19 +372,37 @@ for (const id of ["rev","wrap","showTrail"]) {
   const v = store(id); if (v!==null) $(id).checked = v==="1";
   $(id).addEventListener("change", ()=>store(id, $(id).checked?"1":"0"));
 }
-{ const v=store("sens"); if (v) $("sens").value=v; $("sens").addEventListener("input",()=>store("sens",$("sens").value)); }
-$("setBtn").onclick = () => { $("settings").hidden = !$("settings").hidden; $("setBtn").classList.toggle("on", !$("settings").hidden); poke(); };
-let pipMode = store("pip") || "full";
-const applyPip = () => { $("pip").classList.toggle("tiny", pipMode==="tiny"); $("pipBtn").classList.toggle("on", pipMode==="full"); };
-$("pipBtn").onclick = () => { pipMode = pipMode==="full"?"tiny":"full"; store("pip",pipMode); applyPip(); };
-applyPip();
+const distEl=$("dist");
+{ const v=store("dist"); if (v) distEl.value=v; }
+function setDist(v){
+  distEl.value = Math.max(+distEl.min, Math.min(+distEl.max, v));
+  store("dist", distEl.value);
+  $("distVal").textContent = distEl.value + "%";
+  const r=$("reach"); r.style.width = distEl.value+"%"; r.style.left = (50-distEl.value/2)+"%";
+  document.querySelectorAll(".presets button").forEach(b=>b.classList.toggle("on", b.dataset.d===distEl.value));
+}
+distEl.addEventListener("input", ()=>setDist(+distEl.value));
+$("distMinus").onclick = ()=>setDist(+distEl.value-2);
+$("distPlus").onclick = ()=>setDist(+distEl.value+2);
+document.querySelectorAll(".presets button").forEach(b=>b.onclick=()=>setDist(+b.dataset.d));
+setDist(+distEl.value);
+function openPanel(which){
+  const sw = which==="swipe" && $("swipePanel").hidden;
+  const st = which==="settings" && $("settings").hidden;
+  $("swipePanel").hidden = !sw; $("settings").hidden = !st;
+  $("swipeBtn").classList.toggle("on", sw); $("setBtn").classList.toggle("on", st);
+  $("trail").classList.toggle("adjust", sw);
+  poke();
+}
+$("swipeBtn").onclick = () => openPanel("swipe");
+$("setBtn").onclick = () => openPanel("settings");
 
 /* ---------------- start / exit ---------------- */
 $("goBtn").onclick = async () => {
   $("start").hidden = true; $("viewer").hidden = false;
   enterFS(); keepAwake(); poke();
   show(0);
-  if ($("useCam").checked) startCamera(); else { $("pip").hidden = true; }
+  if ($("useCam").checked) startCamera();
 };
 $("exitBtn").onclick = () => {
   $("viewer").hidden = true; $("start").hidden = false;
@@ -386,23 +412,19 @@ $("exitBtn").onclick = () => {
 
 /* ---------------- camera + hand tracking ---------------- */
 let landmarker=null, stream=null, running=false, lastVideoTime=-1;
-const video=$("video"), cvs=$("overlay"), ctx=cvs.getContext("2d");
-const setStatus = (txt, cls="") => { $("statusText").textContent = txt; $("dot").className = cls; };
+const video=$("video");
 
 async function startCamera(){
-  $("pip").hidden = false;
-  setStatus("asking for camera…","wait");
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user", width:{ideal:640}, height:{ideal:480}}, audio:false});
   }catch(e){
-    setStatus("no camera","");
     toast("Camera unavailable. Allow camera access, or use touch and arrow keys.", 4000);
     return;
   }
   video.srcObject = stream;
   await video.play().catch(()=>{});
   if (!landmarker){
-    setStatus("loading hand model…","wait");
+    toast("Loading hand tracking…", 0);
     try{
       const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
       const opts = d => ({
@@ -414,12 +436,11 @@ async function startCamera(){
       catch(e){ landmarker = await HandLandmarker.createFromOptions(fileset, opts("CPU")); }
     }catch(e){
       console.error(e);
-      setStatus("tracking failed","");
       toast("Hand tracking couldn't load. Check your connection; touch and keys still work.", 4000);
       return;
     }
   }
-  setStatus("show your hand","");
+  toast("Hand tracking ready. Swipe to change images.", 2200);
   running = true;
   requestAnimationFrame(loop);
 }
@@ -433,14 +454,14 @@ function stopCamera(){
    After a swipe, the opposite direction is ignored for a moment so the return stroke doesn't undo it. */
 const hist=[];
 let cooldownUntil=0, lastFire={dir:0,t:0};
-const WINDOW_MS=280;
+let WINDOW_MS=280;
 
 function detectSwipe(x,y,now){
+  const minDist = distEl.value/100;            // fraction of camera width
+  WINDOW_MS = 200 + minDist*500;                // longer swipes get a bit more time
   hist.push({x,y,t:now});
   while (hist.length && now-hist[0].t > WINDOW_MS) hist.shift();
   if (now < cooldownUntil || hist.length < 3) return;
-  const sens = +$("sens").value;                // 1..10
-  const minDist = 0.34 - sens*0.022;             // fraction of frame width: 0.32 .. 0.12
   const o = hist[0];
   const dx = x-o.x, dy = y-o.y;
   if (Math.abs(dx) < minDist || Math.abs(dx) < Math.abs(dy)*1.6) return;
@@ -453,18 +474,6 @@ function detectSwipe(x,y,now){
   navigate(which, true);
 }
 
-const HAND_LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-function drawHand(lm){
-  const w=cvs.width=video.videoWidth||640, h=cvs.height=video.videoHeight||480;
-  ctx.clearRect(0,0,w,h);
-  if (!lm || pipMode==="tiny") return;
-  ctx.lineWidth=Math.max(2,w/200); ctx.strokeStyle="rgba(95,211,154,.9)"; ctx.fillStyle="#ffb547";
-  ctx.beginPath();
-  for (const [a,b] of HAND_LINKS){ ctx.moveTo(lm[a].x*w,lm[a].y*h); ctx.lineTo(lm[b].x*w,lm[b].y*h); }
-  ctx.stroke();
-  for (const p of lm){ ctx.beginPath(); ctx.arc(p.x*w,p.y*h,ctx.lineWidth*1.4,0,7); ctx.fill(); }
-}
-
 let lostSince=0;
 function loop(){
   if (!running) return;
@@ -473,20 +482,18 @@ function loop(){
     const now = performance.now();
     let res; try{ res = landmarker.detectForVideo(video, now); }catch(e){ res=null; }
     const lm = res?.landmarks?.[0];
-    drawHand(lm);
     if (lm){
       // palm centre = average of wrist and the four knuckles
       const ids=[0,5,9,13,17];
       let x=0,y=0; for(const i of ids){x+=lm[i].x;y+=lm[i].y;} x/=ids.length; y/=ids.length;
       const mx = 1-x;                            // mirror to the viewer's perspective
-      setStatus("hand","hand");
       const tr=$("trail"); tr.classList.toggle("off", !$("showTrail").checked);
       $("trailDot").style.left = (mx*100).toFixed(1)+"%";
       detectSwipe(mx,y,now);
       lostSince=0;
     } else {
       if (!lostSince) lostSince=now;
-      if (now-lostSince>150){ hist.length=0; $("trail").classList.add("off"); setStatus("show your hand",""); }
+      if (now-lostSince>150){ hist.length=0; $("trail").classList.add("off"); }
     }
   }
   requestAnimationFrame(loop);
