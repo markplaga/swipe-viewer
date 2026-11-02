@@ -145,7 +145,9 @@ h1{font-size:clamp(30px,7vw,44px);line-height:1;margin:0;font-weight:700;letter-
         Choose zip files
       </label>
       <input id="zipInput" type="file" accept=".zip,application/zip,application/x-zip-compressed" multiple hidden>
-      <p class="note" id="dropNote">Or drop them here. Images inside folders are included and sorted by name.</p>
+      <label class="btn ghost sm" for="folderInput" id="folderLabel">Choose folder</label>
+      <input id="folderInput" type="file" webkitdirectory directory multiple hidden>
+      <p class="note" id="dropNote">Or drop them here. Images inside zip files or folders are included and sorted by name.</p>
       <form class="urlrow" id="urlForm" novalidate>
         <input type="url" id="urlInput" placeholder="Or paste a link to a zip (e.g. Dropbox share link)" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button class="btn ghost sm" id="addUrl">Add link</button>
@@ -294,13 +296,60 @@ $("urlForm").addEventListener("submit", async e => {
   if (bad.length) showErr("Couldn't load that link. Use a Dropbox share link to a .zip file, or a zip stored on this site. (Google Drive links don't allow other apps to load them.)");
   else $("urlInput").value = "";
 });
-function showErr(t){ const e=$("err"); e.textContent=t; e.hidden=false; }
-
+function isZipFile(file){
+  return /\.zip$/i.test(file.name) || /zip/.test(file.type || "");
+}
+function makeImageEntry(file, sourceName, displayName){
+  return {
+    zip: sourceName,
+    name: displayName || file.name,
+    entry: file
+  };
+}
+async function addFolderFiles(fileList){
+  const files = [...fileList].filter(f => IMG_RE.test(f.name));
+  if (!files.length){ showErr("This folder doesn't contain any image files."); return; }
+  const sourceName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "folder";
+  if (zips.some(z => z.name === sourceName)) return;
+  images.push(...files.map(f => makeImageEntry(f, sourceName, f.webkitRelativePath || f.name)));
+  zips.push({name: sourceName, count: files.length});
+  zipFiles.push({name: sourceName, size: files.reduce((sum, f)=>sum + (f.size || 0), 0), handle:null, url:null});
+  renderZipList();
+  if (pending) checkPending();
+}
+async function readFolderEntry(entry, out){
+  if (!entry) return;
+  if (entry.isFile){
+    const file = await new Promise((res, rej) => entry.file(res, rej));
+    if (file && IMG_RE.test(file.name)) out.push(file);
+    return;
+  }
+  if (entry.isDirectory){
+    const reader = entry.createReader();
+    const entries = await new Promise((res, rej) => reader.readEntries(res, rej));
+    for (const child of entries) await readFolderEntry(child, out);
+  }
+}
+async function handleDroppedFolder(dataTransfer){
+  const roots = [];
+  for (const item of dataTransfer.items || []){
+    const entry = item.webkitGetAsEntry?.();
+    if (entry) roots.push(entry);
+  }
+  if (!roots.length) return false;
+  const files = [];
+  for (const entry of roots) await readFolderEntry(entry, files);
+  if (files.length) {
+    await addFolderFiles(files);
+    return true;
+  }
+  return false;
+}
 async function addZips(fileList, handles=[], urls=[]){
   const err = $("err"); err.hidden = true;
   for (const [i,file] of [...fileList].entries()){
     if (zips.some(z=>z.name===file.name)) continue;   // already loaded
-    if (!/\.zip$/i.test(file.name) && !/zip/.test(file.type)) continue;
+    if (!isZipFile(file)) continue;
     try{
       const zip = await JSZip.loadAsync(file);
       const found = [];
@@ -350,6 +399,7 @@ function updateGo(){
   g.textContent = images.length ? `Start viewing ${images.length} images` : "Start viewing";
 }
 $("zipInput").addEventListener("change", e => { const fl=[...e.target.files]; e.target.value=""; addZips(fl); });
+$("folderInput").addEventListener("change", async e => { const fl=[...e.target.files]; e.target.value=""; await addFolderFiles(fl); });
 async function pickFiles(){
   if (!CAN_POINT) return $("zipInput").click();
   let hs; try{ hs = await showOpenFilePicker({multiple:true, types:[{description:"Zip files", accept:{"application/zip":[".zip"]}}]}); }catch(e){ return; }
@@ -359,6 +409,11 @@ if (CAN_POINT) $("pickLabel").addEventListener("click", e => { e.preventDefault(
 // Dropped files: grab file handles too where the browser offers them.
 async function dropped(dt){
   const items = [...(dt.items||[])].filter(it=>it.kind==="file");
+  const hasFolder = items.some(it => it.webkitGetAsEntry && it.webkitGetAsEntry()?.isDirectory);
+  if (hasFolder){
+    const handled = await handleDroppedFolder(dt);
+    if (handled) return;
+  }
   const hp = items.map(it => it.getAsFileSystemHandle?.().catch(()=>null) ?? Promise.resolve(null));
   const files = [...dt.files];
   const hs = await Promise.all(hp);
@@ -376,7 +431,8 @@ async function urlFor(i){
   if (urlCache.has(i)) return urlCache.get(i);
   const it = images[i];
   const ext = it.name.split(".").pop().toLowerCase();
-  const blob = new Blob([await it.entry.async("uint8array")], {type: MIME[ext]||"application/octet-stream"});
+  const payload = it.entry instanceof File ? await it.entry.arrayBuffer() : await it.entry.async("uint8array");
+  const blob = new Blob([payload], {type: MIME[ext]||"application/octet-stream"});
   const url = URL.createObjectURL(blob);
   urlCache.set(i,url);
   return url;
